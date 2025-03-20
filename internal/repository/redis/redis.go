@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -22,6 +23,7 @@ type RedisStruct struct {
 	db *redis.Client
 }
 
+// / подключение к Redis
 func Connect(config config.RedisConfig) (*RedisStruct, error) {
 	var rClient RedisStruct
 	dbNumber, err := strconv.Atoi(config.DB)
@@ -41,32 +43,39 @@ func Connect(config config.RedisConfig) (*RedisStruct, error) {
 	return &rClient, nil
 }
 
+// Сохранение факта в Redis
 func (redisClient *RedisStruct) Set(ctx context.Context, fact models.Fact) error {
-	if err := redisClient.db.HSet(ctx, fact.IndicatorToMOID, fact, 0).Err(); err != nil {
+	json, err := json.Marshal(fact)
+	if err != nil {
+		return err
+	}
+
+	if err := redisClient.db.Set(ctx, fact.IndicatorToMOID, json, 0).Err(); err != nil {
 		return err
 	}
 	return nil
 }
 
+// Получение факта из Redis
 func (redisClient *RedisStruct) GetRandomFact(ctx context.Context) (models.Fact, error) {
+	var buf []byte
 	var fact models.Fact
 	key := redisClient.db.RandomKey(ctx)
-	if key == nil {
+	if key.Err() == redis.Nil {
 		return fact, KeyNilError
 	}
-	val := redisClient.db.HGetAll(ctx, key.String()).Val()
-	fact.PeriodStart = val["PeriodStart"]
-	fact.PeriodEnd = val["PeriodEnd"]
-	fact.PeriodKeep = val["PeriodKeey"]
-	fact.IndicatorToMOID = val["IndicatorToMOID"]
-	fact.IndicatorToMOFactID = val["IndicatorToMOFactID"]
-	fact.Value = val["Value"]
-	fact.FactTime = val["FactTime"]
-	fact.IsPlan = val["IsPlan"]
-	fact.Comment = val["Comment"]
+	err := redisClient.db.Get(ctx, key.Val()).Scan(&buf)
+	if err != nil {
+		return fact, err
+	}
+	err = json.Unmarshal(buf, &fact)
+	if err != nil {
+		return fact, err
+	}
 	return fact, nil
 }
 
+// Удаление факта из Redis
 func (redisClient *RedisStruct) DeleteFact(ctx context.Context, key string) error {
 	err := redisClient.db.Del(ctx, key).Err()
 	if err != nil {

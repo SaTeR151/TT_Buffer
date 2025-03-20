@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/SaTeR151/TT_Buffer/internal/config"
@@ -24,7 +25,7 @@ func main() {
 
 	serverConfig := config.GetServerConfig()
 	redisConfig := config.GetRedisConfig()
-	//SFConfig := config.GetSFConfig()
+	SFConfig := config.GetSFConfig()
 
 	redisClient, err := redis.Connect(redisConfig)
 	if err != nil {
@@ -35,6 +36,10 @@ func main() {
 	r := gin.Default()
 
 	r.POST("/facts_to_buffer", handlers.PostFactsToBuffer(service))
+
+	// горутина для отправки фактов на сохранение
+	go service.SendFact(context.Background(), SFConfig)
+
 	logger.Info("starting server")
 	if err := r.Run(":" + serverConfig.Port); err != nil {
 		logger.Error(fmt.Sprintf("server starting error: %s\v", err.Error()))
