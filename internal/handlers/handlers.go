@@ -10,6 +10,7 @@ import (
 	logger "github.com/sirupsen/logrus"
 )
 
+// / PostFactsToBuffer - хендлер для обратки поступающих факто и помещения их в буфер (Redis)
 func PostFactsToBuffer(s service.ServiceInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var fact models.Fact
@@ -18,6 +19,7 @@ func PostFactsToBuffer(s service.ServiceInterface) gin.HandlerFunc {
 			logger.Error(err)
 			return
 		}
+		logger.Info("saving fact")
 		err := s.Insert(context.Background(), fact)
 		if err != nil {
 			c.String(http.StatusInternalServerError, err.Error())
